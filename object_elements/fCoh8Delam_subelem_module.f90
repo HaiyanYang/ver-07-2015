@@ -345,7 +345,7 @@ use global_toolkit_module, only : distance, partition_quad_elem
   ! variables to define edge lambda
   integer               :: n_crackedges, jcrackedge
   integer               :: jcracknode, jendnode1, jendnode2
-  real(DP), allocatable :: x1(:), x2(:), xc(:)
+  real(DP)              :: x1(NDIM), x2(NDIM), xc(NDIM)
   real(DP)              :: distn1n2, distn1nc, lambda
   ! variables to define sub elems
   type(INT_ALLOC_ARRAY), allocatable :: subelems_nodes_top(:)
@@ -414,7 +414,6 @@ use global_toolkit_module, only : distance, partition_quad_elem
     if (distn1n2 < SMALLNUM .or. distn1nc < SMALLNUM) then
       istat = STAT_FAILURE
       emsg = 'coords of edge end nodes or fl. nodes are incorrect'//trim(msgloc)
-      call clean_up (subelems_nodes_top, subelems_nodes_bot, x1, x2, xc)
       return
     end if
     ! calculate lambda
@@ -423,7 +422,6 @@ use global_toolkit_module, only : distance, partition_quad_elem
     if ( .not. (SMALLNUM < lambda .and. lambda < ONE-SMALLNUM) ) then
       istat = STAT_FAILURE
       emsg  = 'edge lambda is out of range'//trim(msgloc)
-      call clean_up (subelems_nodes_top, subelems_nodes_bot, x1, x2, xc)
       return
     end if
     ! update lambda to el components
@@ -441,7 +439,6 @@ use global_toolkit_module, only : distance, partition_quad_elem
   & subelems_nodes_top, istat, emsg)
   if (istat == STAT_FAILURE) then
     emsg = trim(emsg)//trim(msgloc)
-    call clean_up (subelems_nodes_top, subelems_nodes_bot, x1, x2, xc)
     return
   end if
 
@@ -452,7 +449,6 @@ use global_toolkit_module, only : distance, partition_quad_elem
   & subelems_nodes_bot, istat, emsg)
   if (istat == STAT_FAILURE) then
     emsg = trim(emsg)//trim(msgloc)
-    call clean_up (subelems_nodes_top, subelems_nodes_bot, x1, x2, xc)
     return
   end if
 
@@ -497,28 +493,6 @@ use global_toolkit_module, only : distance, partition_quad_elem
     &  subelems_nodes_bot(j)%array(:)
 
   end do
-
-
-  ! deallocate local alloc arrays before successful return
-  call clean_up (subelems_nodes_top, subelems_nodes_bot, x1, x2, xc)
-  return
-
-
-
-  contains
-
-
-  pure subroutine clean_up (subelems_nodes_top, subelems_nodes_bot, x1, x2, xc)
-    type(INT_ALLOC_ARRAY), allocatable, intent(inout) :: subelems_nodes_top(:)
-    type(INT_ALLOC_ARRAY), allocatable, intent(inout) :: subelems_nodes_bot(:)
-    real(DP),              allocatable, intent(inout) :: x1(:), x2(:), xc(:)
-
-    if(allocated(subelems_nodes_top))   deallocate(subelems_nodes_top)
-    if(allocated(subelems_nodes_bot))   deallocate(subelems_nodes_bot)
-    if(allocated(x1))                   deallocate(x1)
-    if(allocated(x2))                   deallocate(x2)
-    if(allocated(xc))                   deallocate(xc)
-  end subroutine clean_up
 
 
 end subroutine partition_element
@@ -627,11 +601,11 @@ use global_toolkit_module,    only : assembleKF
     ! exit the do loop (and if-else subsequently) if an error is encountered
     call integrate(elem%subelems(isub), nodes(subcnc), material, theta1, theta2,&
     & Ki, Fi, istat, emsg, nofail)
-    if (istat == STAT_FAILURE) exit
+    if (istat == STAT_FAILURE) goto 10
 
     ! assemble the sub elem K and F
     call assembleKF(K_matrix, F_vector, Ki, Fi, subcnc, NDIM, istat, emsg)
-    if (istat == STAT_FAILURE) exit
+    if (istat == STAT_FAILURE) goto 10
 
   end do
 
@@ -649,7 +623,7 @@ use global_toolkit_module,    only : assembleKF
     if (n /= 16*NDIM) then
       istat = STAT_FAILURE
       emsg = 'Tmatrix size incorrect'//trim(msgloc)
-      return
+      goto 10
     end if
     ! end debug
     allocate( Kmat_r(n,n), Fvec_r(n) )
@@ -670,20 +644,12 @@ use global_toolkit_module,    only : assembleKF
 
   end if
 
-
   ! clean up if above loop exit upon error
-  if (istat == STAT_FAILURE) then
+10 if (istat == STAT_FAILURE) then
     emsg = trim(emsg)//trim(msgloc)
     K_matrix = ZERO
     F_vector = ZERO
-  end if
-
-  if(allocated(Ki))             deallocate(Ki)
-  if(allocated(Fi))             deallocate(Fi)
-  if(allocated(subcnc))         deallocate(subcnc)
-  if(allocated(Tmatrixfull))    deallocate(Tmatrixfull)
-  if(allocated(Kmat_r))         deallocate(Kmat_r)
-  if(allocated(Fvec_r))         deallocate(Fvec_r)
+   end if
 
 end subroutine integrate_assemble_subelems
 

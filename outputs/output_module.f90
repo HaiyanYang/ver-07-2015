@@ -1,5 +1,5 @@
 module output_module
-use parameter_module, only: DIRLENGTH, ELTYPELENGTH, DP, ZERO, MSG_FILE, EXIT_FUNCTION
+use parameter_module, only: DIRLENGTH, ELTYPELENGTH, DP, NDIM, ZERO, MSG_FILE, EXIT_FUNCTION
 
 implicit none
 private
@@ -50,10 +50,10 @@ use fBrickLam_elem_module, only: extract
   integer                     :: nsize
   
   ! nodal coordinates
-  real(kind=DP), allocatable  :: x(:)     ! coordinates of nodes extracted from lib_node
+  real(kind=DP)  :: x(NDIM)
   
   ! nodal displacements
-  real(kind=DP), allocatable  :: disp(:)  ! displacements of nodes extracted from lib_node
+  real(kind=DP)  :: disp(NDIM)
   
   ! counters
   integer  :: i
@@ -172,7 +172,6 @@ use fBrickLam_elem_module, only: extract
   do i=1, nnode
       call extract(node_list(i),u=disp)
       write(outunit,'(3'//trim(FMATFLOAT)//')') disp(1),disp(2),disp(3)
-      deallocate(disp)
   end do  
           
   write(outunit,'(a)')'' 

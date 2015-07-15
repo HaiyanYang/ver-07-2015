@@ -129,16 +129,19 @@ integer, parameter :: NNDRL       = 8,                      &
                    &  NNODE       = NNDRL + NNDFL + NNDIN,  &
                    &  NDOF        = NDIM * NNODE
 
+! NO. OF NODES IN SUBELEM
+integer, parameter :: NNODE_SUBELEM = 20
+
 ! NODAL CONNEC OF INTACT  ELEM: REAL NODES ONLY
-integer, parameter :: INTACT_ELEM_NODES(8) = [1,2,3,4,5,6,7,8]
+integer, parameter :: INTACT_ELEM_NODES(NNDRL) = [1,2,3,4,5,6,7,8]
 
 ! NODAL CONNEC OF TOP SUB ELEM: REAL NODES, FLOATING NODES AND INTERNAL NODES
-integer, parameter :: TOP_SUBELEM_NODES(20) = &
+integer, parameter :: TOP_SUBELEM_NODES(NNODE_SUBELEM) = &
 & [1,2,3,4,5,6,7,8,17,18,19,20,21,22,23,24,25,26,27,28]
 
 ! NODAL CONNEC OF BOT SUB ELEM: REAL NODES, FLOATING NODES AND INTERNAL NODES
-integer, parameter :: BOT_SUBELEM_NODES(20) = [8,7,6,5,4,3,2,1,  &
-                   &  14,13,12,11,10, 9,16,15,   31,30,29,32]
+integer, parameter :: BOT_SUBELEM_NODES(NNODE_SUBELEM) = &
+& [8,7,6,5,4,3,2,1,14,13,12,11,10, 9,16,15,31,30,29,32]
 
 type, public :: fCoh8Delam_elem
     private
@@ -380,7 +383,7 @@ use global_toolkit_module,     only : assembleKF
   logical,        optional, intent(in)    :: nofailure
 
   !:::: local variables ::::
-  type(fnode)           :: subelem_nds(20)
+  type(fnode)           :: subelem_nds(NNODE_SUBELEM)
   ! sub elem K and F
   real(DP), allocatable :: Ki(:,:), Fi(:)
   ! local copy of optional input arg.
@@ -413,7 +416,6 @@ use global_toolkit_module,     only : assembleKF
       & K_matrix=Ki, F_vector=Fi, istat=istat, emsg=emsg, nofailure=nofail)
       if (istat==STAT_FAILURE) then
         emsg = trim(emsg)//trim(msgloc)
-        call clean_up(Ki, Fi)
         return
       end if
       ! NOTE : vector subscript for nodes arg is allowed, as it is intent in
@@ -424,14 +426,9 @@ use global_toolkit_module,     only : assembleKF
       ! an error is encountered in assembly, zero K and F and exit
       if (istat==STAT_FAILURE) then
         emsg = trim(emsg)//trim(msgloc)
-        K_matrix = ZERO
-        F_vector = ZERO
-        call clean_up(Ki, Fi)
         return
       end if
 
-      ! clean up local alloc. array before successful return
-      call clean_up(Ki, Fi)
       return
 
   end if
@@ -453,7 +450,6 @@ use global_toolkit_module,     only : assembleKF
       & istat=istat, emsg=emsg, nofailure=nofail)
       if (istat==STAT_FAILURE) then
         emsg = trim(emsg)//trim(msgloc)
-        call clean_up(Ki, Fi)
         return
       end if
       ! copy back to nodes
@@ -465,14 +461,10 @@ use global_toolkit_module,     only : assembleKF
       ! an error is encountered in assembly, zero K and F and exit
       if (istat==STAT_FAILURE) then
         emsg = trim(emsg)//trim(msgloc)
-        K_matrix = ZERO
-        F_vector = ZERO
-        call clean_up(Ki, Fi)
         return
       end if
 
   end if
-
 
   if (elem%bot_subelem_set) then
 
@@ -485,7 +477,6 @@ use global_toolkit_module,     only : assembleKF
       & istat=istat, emsg=emsg, nofailure=nofail)
       if (istat==STAT_FAILURE) then
         emsg = trim(emsg)//trim(msgloc)
-        call clean_up(Ki, Fi)
         return
       end if
       ! copy back to nodes
@@ -497,36 +488,16 @@ use global_toolkit_module,     only : assembleKF
       ! an error is encountered in assembly, zero K and F and exit
       if (istat==STAT_FAILURE) then
         emsg = trim(emsg)//trim(msgloc)
-        K_matrix = ZERO
-        F_vector = ZERO
-        call clean_up(Ki, Fi)
         return
       end if
 
   end if
-
 
   if (elem%top_subelem_set .and. elem%bot_subelem_set) then
       ! half the elem's K and F on real nodes
       K_matrix = HALF * K_matrix
       F_vector = HALF * F_vector
   end if
-
-  ! clean up before successful return
-  call clean_up(Ki, Fi)
-
-  return
-
-
-  contains
-
-
-    pure subroutine clean_up (Ki, Fi)
-      real(DP), allocatable, intent(inout) :: Ki(:,:), Fi(:)
-      if(allocated(Ki))     deallocate(Ki)
-      if(allocated(Fi))     deallocate(Fi)
-    end subroutine clean_up
-
 
 end subroutine integrate_fCoh8Delam_elem
 

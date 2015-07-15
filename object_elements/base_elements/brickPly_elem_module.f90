@@ -190,7 +190,7 @@ use global_toolkit_module,       only : crack_elem_centroid2d, determinant3d, &
   ! - xj, uj          : nodal x and u extracted from nodes array
   ! - coords          : element nodal coordinates matrix
   ! - u               : element nodal displacemet vector
-  real(DP), allocatable :: xj(:), uj(:)
+  real(DP)            :: xj(NDIM), uj(NDIM)
   real(DP)            :: coords(NDIM,NNODE), u(NDOF)
   real(DP)            :: coords2d(2,NNODE)
 
@@ -306,32 +306,10 @@ use global_toolkit_module,       only : crack_elem_centroid2d, determinant3d, &
   do j=1, NNODE
     ! extract x and u from nodes
     call extract(nodes(j), x=xj, u=uj)
-    ! assign nodal coordinate values (xj) to coords matrix
-    if(allocated(xj)) then
-      coords(:,j)=xj(:)
-      deallocate(xj)
-    else
-      istat = STAT_FAILURE
-      emsg  = 'x not allocated for node, brickPly_elem_module'
-      exit
-    end if
-    ! assign nodal displacement values (uj) to u vector
-    if(allocated(uj)) then
-      u((j-1)*NDIM+1:j*NDIM)=uj(1:NDIM)
-      deallocate(uj)
-    else
-      istat = STAT_FAILURE
-      emsg  = 'u not allocated for node, brickPly_elem_module'
-      exit
-    end if
+    coords(:,j)              = xj(:)
+    u((j-1)*NDIM+1 : j*NDIM) = uj(:)
   end do
-  ! if there's any error encountered in the extraction process
-  ! clean up and exit the program
-  if (istat == STAT_FAILURE) then
-    call clean_up (K_matrix, F_vector, uj, xj)
-    return
-  end if
-
+  
   !** element characteristic length:
   ! this is the length of the line segment orthogonal to the fibre angle,
   ! and passes the element centroid and crosses two edges of the element.
@@ -347,7 +325,7 @@ use global_toolkit_module,       only : crack_elem_centroid2d, determinant3d, &
   ! if there's any error encountered in the above process
   ! clean up and exit the program
   if (istat == STAT_FAILURE) then
-    call clean_up (K_matrix, F_vector, uj, xj)
+    call clean_up (K_matrix, F_vector)
     return
   end if
   ! if no error, proceed with the clength calculation
@@ -480,7 +458,7 @@ use global_toolkit_module,       only : crack_elem_centroid2d, determinant3d, &
 
   ! check to see if the loop is exited upon error
   if (istat == STAT_FAILURE) then
-    call clean_up (K_matrix, F_vector, uj, xj)
+    call clean_up (K_matrix, F_vector)
     return
   end if
 
@@ -497,26 +475,17 @@ use global_toolkit_module,       only : crack_elem_centroid2d, determinant3d, &
   elem%local_clock = local_clock
   elem%ig_points   = ig_points
 
-  ! deallocate local dynamic arrays
-  if(allocated(xj)) deallocate(xj)
-  if(allocated(uj)) deallocate(uj)
+  return
   
   
   contains 
   ! internal procedures
   
-    pure subroutine clean_up (K_matrix, F_vector, uj, xj)
-    
-      real(DP),              intent(inout) :: K_matrix(:,:), F_vector(:)
-      real(DP), allocatable, intent(inout) :: uj(:), xj(:)
-      
+    pure subroutine clean_up (K_matrix, F_vector)
+      real(DP), intent(inout) :: K_matrix(:,:), F_vector(:)
       ! ZERO intent(out) variables (do not deallocate)
       K_matrix = ZERO
       F_vector = ZERO
-      ! deallocate local alloc. variables
-      if (allocated(uj)) deallocate(uj)
-      if (allocated(xj)) deallocate(xj)
-      
     end subroutine clean_up
 
 end subroutine integrate_brickPly_elem

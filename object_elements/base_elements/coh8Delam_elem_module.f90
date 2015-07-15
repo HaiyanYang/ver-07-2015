@@ -181,7 +181,7 @@ use global_toolkit_module,       only : cross_product3d, normalize_vect, &
   ! - coords          : element nodal coordinates matrix
   ! - u               : element nodal displacemet vector
   ! - midcoords       : coordinates of the mid-plane
-  real(DP), allocatable :: xj(:), uj(:)
+  real(DP)            :: xj(NDIM), uj(NDIM)
   real(DP)            :: coords(NDIM,NNODE), u(NDOF)
   real(DP)            :: midcoords(NDIM,NNODE/2), midcoordsQ(NDIM,NNODE/2)
 
@@ -323,31 +323,9 @@ use global_toolkit_module,       only : cross_product3d, normalize_vect, &
   do j=1, NNODE
     ! extract x and u from nodes
     call extract(nodes(j), x=xj, u=uj)
-    ! assign nodal coordinate values (xj) to coords matrix
-    if(allocated(xj)) then
-      coords(:,j)=xj(:)
-      deallocate(xj)
-    else
-      istat = STAT_FAILURE
-      emsg  = 'x not allocated for node, coh8Delam_elem_module'
-      exit
-    end if
-    ! assign nodal displacement values (uj) to u vector
-    if(allocated(uj)) then
-      u((j-1)*NDIM+1:j*NDIM)=uj(1:NDIM)
-      deallocate(uj)
-    else
-      istat = STAT_FAILURE
-      emsg  = 'u not allocated for node, coh8Delam_elem_module'
-      exit
-    end if
+    coords(:,j)              = xj(:)
+    u((j-1)*NDIM+1 : j*NDIM) = uj(:)
   end do
-  ! if there's any error encountered in the extraction process
-  ! clean up and exit the program
-  if (istat == STAT_FAILURE) then
-    call clean_up (K_matrix, F_vector, uj, xj)
-    return
-  end if
   
   ! calculate mid-plane coordinates from coords
   do j=1, NNODE/2
@@ -366,31 +344,31 @@ use global_toolkit_module,       only : cross_product3d, normalize_vect, &
   if (dot_product(tangent1,normal) > SMALLNUM) then
     istat = STAT_FAILURE
     emsg  = 'edge 1-2 not on x-y plane, coh8Delam_elem_module'
-    call clean_up (K_matrix, F_vector, uj, xj)
+    call clean_up (K_matrix, F_vector)
     return
   end if
   ! check if tangent2 is on x-y plane
   if (dot_product(tangent2,normal) > SMALLNUM) then
     istat = STAT_FAILURE
     emsg  = 'edge 1-4 not on x-y plane, coh8Delam_elem_module'
-    call clean_up (K_matrix, F_vector, uj, xj)
+    call clean_up (K_matrix, F_vector)
     return
   end if
   ! check if tangent3 is on x-y plane
   if (dot_product(tangent3,normal) > SMALLNUM) then
     istat = STAT_FAILURE
     emsg  = 'edge 1-3 not on x-y plane, coh8Delam_elem_module'
-    call clean_up (K_matrix, F_vector, uj, xj)
+    call clean_up (K_matrix, F_vector)
     return
   end if
 
   ! compute the actual normal of the interface (which may be [0,0,-1])
   normal = cross_product3d(tangent1,tangent2)
-  call normalize_vect(normal, is_zero_vect, det)
+  call normalize_vect(normal, is_zero_vect)
   if (is_zero_vect) then
     istat = STAT_FAILURE
     emsg  = 'element area is ZERO, coh8Delam element module'
-    call clean_up (K_matrix, F_vector, uj, xj)
+    call clean_up (K_matrix, F_vector)
     return
   end if
 
@@ -492,7 +470,7 @@ use global_toolkit_module,       only : cross_product3d, normalize_vect, &
       if (det <= ZERO) then
         istat = STAT_FAILURE
         emsg  = 'det of jacob is zero or negative, coh8Delam_elem_module'
-        return
+        exit loop_igpoint
       end if
       
       ! calculate separation delta in local coords: delta = Qmatrix * ujump
@@ -556,7 +534,7 @@ use global_toolkit_module,       only : cross_product3d, normalize_vect, &
 
   ! check to see if the loop is exited upon error
   if (istat == STAT_FAILURE) then
-    call clean_up (K_matrix, F_vector, uj, xj)
+    call clean_up (K_matrix, F_vector)
     return
   end if
 
@@ -578,27 +556,17 @@ use global_toolkit_module,       only : cross_product3d, normalize_vect, &
   elem%ig_points   = ig_points
   elem%ig_angles   = ig_angles
 
-  ! deallocate local dynamic arrays
-  if(allocated(xj)) deallocate(xj)
-  if(allocated(uj)) deallocate(uj)
-
+  return
 
 
   contains
   ! internal procedures
 
-    pure subroutine clean_up (K_matrix, F_vector, uj, xj)
-
-      real(DP),              intent(inout) :: K_matrix(:,:), F_vector(:)
-      real(DP), allocatable, intent(inout) :: uj(:), xj(:)
-
+    pure subroutine clean_up (K_matrix, F_vector)
+      real(DP), intent(inout) :: K_matrix(:,:), F_vector(:)
       ! ZERO intent(out) variables (do not deallocate)
       K_matrix = ZERO
       F_vector = ZERO
-      ! deallocate local alloc. variables
-      if (allocated(uj)) deallocate(uj)
-      if (allocated(xj)) deallocate(xj)
-
     end subroutine clean_up
 
 end subroutine integrate_coh8Delam_elem

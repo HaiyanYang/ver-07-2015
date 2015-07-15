@@ -450,7 +450,7 @@ end subroutine integrate_fBrickPly_elem
 
 
 pure subroutine edge_status_partition (elem, nodes, ply_angle, istat, emsg)
-use parameter_module,      only : DP, MSGLENGTH, STAT_SUCCESS, STAT_FAILURE,  &
+use parameter_module,      only : NDIM, DP, MSGLENGTH, STAT_SUCCESS, STAT_FAILURE,  &
                           & REAL_ALLOC_ARRAY, ZERO, INTACT,                   &
                           & TRANSITION_EDGE, REFINEMENT_EDGE,                 &
                           & CRACK_TIP_EDGE,  COH_CRACK_EDGE,                  &
@@ -470,7 +470,7 @@ use global_toolkit_module, only : crack_elem_cracktip2d
   character(len=MSGLENGTH)  :: msgloc
   integer                   :: edge_status(NEDGE)
   integer                   :: elstatus, eledgestatus_lcl(NEDGE_SURF)
-  type(REAL_ALLOC_ARRAY)    :: coords(NNODE)
+  real(DP)                  :: coords(NDIM,NNODE)
   integer                   :: nfailedge
   integer                   :: ifailedge(NEDGE_SURF)
   real(DP)                  :: crackpoint1(2), crackpoint2(2)
@@ -531,14 +531,14 @@ use global_toolkit_module, only : crack_elem_cracktip2d
   eledgestatus_lcl  = elem%edge_status_lcl
   ! extract nodal coords from passed in nodes array
   do i = 1, NNODE
-    call extract (nodes(i), x=coords(i)%array)
+    call extract (nodes(i), x=coords(:,i))
   end do
   
   ! find ztop and zbot
   ! NOTE: this element assumes that top surf nodes have the same z coord: ztop
   !                            and  bot surf nodes have the same z coord: zbot
-  ztop = coords( NODES_ON_TOP_EDGES(1,1) )%array(3)
-  zbot = coords( NODES_ON_BOT_EDGES(1,1) )%array(3)
+  ztop = coords( 3 , NODES_ON_TOP_EDGES(1,1) )
+  zbot = coords( 3 , NODES_ON_BOT_EDGES(1,1) )
 
 
   !**** MAIN CALCULATIONS ****
@@ -603,10 +603,10 @@ use global_toolkit_module, only : crack_elem_cracktip2d
       ! index of a fl. node on this edge
       jnode = NODES_ON_BOT_EDGES(3,jbe1)
       ! coords of this fl. node is the existing crack point coords
-      crackpoint1(:) = coords(jnode)%array(1:2)
+      crackpoint1(:) = coords(1:2 , jnode)
       ! 2D nodal coords of the bottom quad surface (first 4 nodes of the elem)
       do i = 1, NEDGE_SURF
-        botsurf_coords(:,i) = coords(i)%array(1:2)
+        botsurf_coords(:,i) = coords(1:2 , i)
       end do
       ! find the other edge crossed by the crack line and the other crack point
       call crack_elem_cracktip2d (cracktip_point = crackpoint1,               &
@@ -692,36 +692,36 @@ use global_toolkit_module, only : crack_elem_cracktip2d
       ! update the coords of two fl. nodes on edge jbe2
       ! of both top and bot surfaces, assuming a perpendicular matrix crack
       jnode = NODES_ON_BOT_EDGES(3,jbe2)
-      coords(jnode)%array(1:2)=crackpoint2(:)
-      coords(jnode)%array(3)  =zbot
-      call update(nodes(jnode), x=coords(jnode)%array)
+      coords(1:2,jnode)=crackpoint2(:)
+      coords(3,  jnode)=zbot
+      call update(nodes(jnode), x=coords(:,jnode))
 
       jnode = NODES_ON_BOT_EDGES(4,jbe2)
-      coords(jnode)%array(1:2)=crackpoint2(:)
-      coords(jnode)%array(3)  =zbot
-      call update(nodes(jnode), x=coords(jnode)%array)
+      coords(1:2,jnode)=crackpoint2(:)
+      coords(3,  jnode)=zbot
+      call update(nodes(jnode), x=coords(:,jnode))
 
       jnode = NODES_ON_TOP_EDGES(3,jbe2)
-      coords(jnode)%array(1:2)=crackpoint2(:)
-      coords(jnode)%array(3)  =ztop
-      call update(nodes(jnode), x=coords(jnode)%array)
+      coords(1:2,jnode)=crackpoint2(:)
+      coords(3,  jnode)=ztop
+      call update(nodes(jnode), x=coords(:,jnode))
 
       jnode = NODES_ON_TOP_EDGES(4,jbe2)
-      coords(jnode)%array(1:2)=crackpoint2(:)
-      coords(jnode)%array(3)  =ztop
-      call update(nodes(jnode), x=coords(jnode)%array)
+      coords(1:2,jnode)=crackpoint2(:)
+      coords(3,  jnode)=ztop
+      call update(nodes(jnode), x=coords(:,jnode))
     end if
     
     ! update bot surf fl. nodes nstat
-    call update(nodes(NODES_ON_EDGES(3,jbe1)), nstat=eledgestatus_lcl(jbe1))
-    call update(nodes(NODES_ON_EDGES(3,jbe2)), nstat=eledgestatus_lcl(jbe2))
-    call update(nodes(NODES_ON_EDGES(4,jbe1)), nstat=eledgestatus_lcl(jbe1))
-    call update(nodes(NODES_ON_EDGES(4,jbe2)), nstat=eledgestatus_lcl(jbe2))
+    call update(nodes(NODES_ON_BOT_EDGES(3,jbe1)), nstat=eledgestatus_lcl(jbe1))
+    call update(nodes(NODES_ON_BOT_EDGES(3,jbe2)), nstat=eledgestatus_lcl(jbe2))
+    call update(nodes(NODES_ON_BOT_EDGES(4,jbe1)), nstat=eledgestatus_lcl(jbe1))
+    call update(nodes(NODES_ON_BOT_EDGES(4,jbe2)), nstat=eledgestatus_lcl(jbe2))
     ! update top surf fl. nodes nstat
-    call update(nodes(NODES_ON_EDGES(3,jbe1+NEDGE_SURF)), nstat=eledgestatus_lcl(jbe1))
-    call update(nodes(NODES_ON_EDGES(3,jbe2+NEDGE_SURF)), nstat=eledgestatus_lcl(jbe2))
-    call update(nodes(NODES_ON_EDGES(4,jbe1+NEDGE_SURF)), nstat=eledgestatus_lcl(jbe1))
-    call update(nodes(NODES_ON_EDGES(4,jbe2+NEDGE_SURF)), nstat=eledgestatus_lcl(jbe2))
+    call update(nodes(NODES_ON_TOP_EDGES(3,jbe1)), nstat=eledgestatus_lcl(jbe1))
+    call update(nodes(NODES_ON_TOP_EDGES(3,jbe2)), nstat=eledgestatus_lcl(jbe2))
+    call update(nodes(NODES_ON_TOP_EDGES(4,jbe1)), nstat=eledgestatus_lcl(jbe1))
+    call update(nodes(NODES_ON_TOP_EDGES(4,jbe2)), nstat=eledgestatus_lcl(jbe2))
 
     ! update elem partition when changing from intact or trans. elem
     if (elem%curr_status == INTACT .or. &
@@ -841,7 +841,7 @@ pure subroutine failure_criterion_partition (elem, nodes, ply_angle, istat, emsg
 ! Purpose:
 ! this subroutine updates elem status & partition to MATRIX_CRACK_ELEM
 ! if any sub elem is nolonger INTACT
-use parameter_module,       only : DP, MSGLENGTH, STAT_SUCCESS, STAT_FAILURE, &
+use parameter_module,       only : DP, NDIM, MSGLENGTH, STAT_SUCCESS, STAT_FAILURE, &
                           & REAL_ALLOC_ARRAY, ZERO, INTACT,                   &
                           & TRANSITION_EDGE, COH_CRACK_EDGE,                  &
                           & TRANSITION_ELEM, REFINEMENT_ELEM,                 &
@@ -862,7 +862,7 @@ use global_toolkit_module,  only : crack_elem_centroid2d, crack_elem_cracktip2d
   ! local variable
   character(len=MSGLENGTH)  :: msgloc
   integer                   :: subelstatus
-  type(REAL_ALLOC_ARRAY)    :: coords(NNODE)
+  real(DP)                  :: coords(NDIM,NNODE)
   integer                   :: nfailedge
   integer                   :: ifailedge(NEDGE_SURF)
   real(DP)                  :: crackpoints(2,2), crackpoint1(2), crackpoint2(2)
@@ -909,14 +909,14 @@ use global_toolkit_module,  only : crack_elem_centroid2d, crack_elem_cracktip2d
 
   ! extract nodal coords from passed in nodes array
   do i = 1, NNODE
-    call extract (nodes(i), x=coords(i)%array)
+    call extract (nodes(i), x=coords(:,i))
   end do
   
   ! find ztop and zbot
   ! NOTE: this element assumes that top surf nodes have the same z coord: ztop
   !                            and  bot surf nodes have the same z coord: zbot
-  ztop = coords( NODES_ON_TOP_EDGES(1,1) )%array(3)
-  zbot = coords( NODES_ON_BOT_EDGES(1,1) )%array(3)
+  ztop = coords( 3, NODES_ON_TOP_EDGES(1,1) )
+  zbot = coords( 3, NODES_ON_BOT_EDGES(1,1) )
 
   !**** MAIN CALCULATIONS ****
   !
@@ -963,7 +963,7 @@ use global_toolkit_module,  only : crack_elem_centroid2d, crack_elem_cracktip2d
         failed = .true.
         ! 2D nodal coords of the bottom quad surface (first 4 nodes of the elem)
         do i = 1, NEDGE_SURF
-          botsurf_coords(:,i) = coords(i)%array(1:2)
+          botsurf_coords(:,i) = coords(1:2,i)
         end do
         ! use the crack_elem_centroid2d subroutine to find 2 cross points and 2
         ! crack edges of the elem, with crack passing elem centroid
@@ -1030,10 +1030,10 @@ use global_toolkit_module,  only : crack_elem_centroid2d, crack_elem_cracktip2d
         ! index of a fl. node on this edge
         jnode = NODES_ON_BOT_EDGES(3,jbe1)
         ! coords of this fl. node is the existing crack point coords
-        crackpoint1(:) = coords(jnode)%array(1:2)
+        crackpoint1(:) = coords(1:2,jnode)
         ! 2D nodal coords of the bottom quad surface (first 4 nodes of the elem)
         do i = 1, NEDGE_SURF
-          botsurf_coords(:,i) = coords(i)%array(1:2)
+          botsurf_coords(:,i) = coords(1:2,i)
         end do
         ! find the 2nd edge crossed by the crack line and the 2nd crack point
         call crack_elem_cracktip2d (cracktip_point = crackpoint1,              &
@@ -1128,46 +1128,46 @@ use global_toolkit_module,  only : crack_elem_centroid2d, crack_elem_cracktip2d
       ! update the coords of two fl. nodes on edge jbe1
       ! of both top and bot surfaces, now assuming a perpendicular matrix crack
       jnode = NODES_ON_BOT_EDGES(3,jbe1)
-      coords(jnode)%array(1:2)=crackpoints(:,1)
-      coords(jnode)%array(3)  =zbot
-      call update(nodes(jnode), x=coords(jnode)%array)
+      coords(1:2,jnode)=crackpoints(:,1)
+      coords(3,  jnode)=zbot
+      call update(nodes(jnode), x=coords(:,jnode))
       
       jnode = NODES_ON_BOT_EDGES(4,jbe1)
-      coords(jnode)%array(1:2)=crackpoints(:,1)
-      coords(jnode)%array(3)  =zbot
-      call update(nodes(jnode), x=coords(jnode)%array)
+      coords(1:2,jnode)=crackpoints(:,1)
+      coords(3,  jnode)=zbot
+      call update(nodes(jnode), x=coords(:,jnode))
 
       jnode = NODES_ON_TOP_EDGES(3,jbe1)
-      coords(jnode)%array(1:2)=crackpoints(:,1)
-      coords(jnode)%array(3)  =ztop
-      call update(nodes(jnode), x=coords(jnode)%array)
+      coords(1:2,jnode)=crackpoints(:,1)
+      coords(3,  jnode)=ztop
+      call update(nodes(jnode), x=coords(:,jnode))
 
       jnode = NODES_ON_TOP_EDGES(4,jbe1)
-      coords(jnode)%array(1:2)=crackpoints(:,1)
-      coords(jnode)%array(3)  =ztop
-      call update(nodes(jnode), x=coords(jnode)%array)
+      coords(1:2,jnode)=crackpoints(:,1)
+      coords(3,  jnode)=ztop
+      call update(nodes(jnode), x=coords(:,jnode))
 
       ! update the coords of two fl. nodes on edge jbe2
       ! of both top and bot surfaces, now assuming a perpendicular matrix crack
       jnode = NODES_ON_BOT_EDGES(3,jbe2)
-      coords(jnode)%array(1:2)=crackpoints(:,2)
-      coords(jnode)%array(3)  =zbot
-      call update(nodes(jnode), x=coords(jnode)%array)
+      coords(1:2,jnode)=crackpoints(:,2)
+      coords(3,  jnode)=zbot
+      call update(nodes(jnode), x=coords(:,jnode))
       
       jnode = NODES_ON_BOT_EDGES(4,jbe2)
-      coords(jnode)%array(1:2)=crackpoints(:,2)
-      coords(jnode)%array(3)  =zbot
-      call update(nodes(jnode), x=coords(jnode)%array)
+      coords(1:2,jnode)=crackpoints(:,2)
+      coords(3,  jnode)=zbot
+      call update(nodes(jnode), x=coords(:,jnode))
       
       jnode = NODES_ON_TOP_EDGES(3,jbe2)
-      coords(jnode)%array(1:2)=crackpoints(:,2)
-      coords(jnode)%array(3)  =ztop
-      call update(nodes(jnode), x=coords(jnode)%array)
+      coords(1:2,jnode)=crackpoints(:,2)
+      coords(3,  jnode)=ztop
+      call update(nodes(jnode), x=coords(:,jnode))
       
       jnode = NODES_ON_TOP_EDGES(4,jbe2)
-      coords(jnode)%array(1:2)=crackpoints(:,2)
-      coords(jnode)%array(3)  =ztop
-      call update(nodes(jnode), x=coords(jnode)%array)
+      coords(1:2,jnode)=crackpoints(:,2)
+      coords(3,  jnode)=ztop
+      call update(nodes(jnode), x=coords(:,jnode))
       
     ! update edge jbe2 fl. nodes when elem was previously transition elem
     ! (on both surfs), coords update to crackpoint2
@@ -1175,39 +1175,39 @@ use global_toolkit_module,  only : crack_elem_centroid2d, crack_elem_cracktip2d
       ! update the coords of two fl. nodes on edge jbe2
       ! of both top and bot surfaces, now assuming a perpendicular matrix crack
       jnode = NODES_ON_BOT_EDGES(3,jbe2)
-      coords(jnode)%array(1:2)=crackpoint2(:)
-      coords(jnode)%array(3)  =zbot
-      call update(nodes(jnode), x=coords(jnode)%array)
+      coords(1:2,jnode)=crackpoint2(:)
+      coords(3,  jnode)=zbot
+      call update(nodes(jnode), x=coords(:,jnode))
       
       jnode = NODES_ON_BOT_EDGES(4,jbe2)
-      coords(jnode)%array(1:2)=crackpoint2(:)
-      coords(jnode)%array(3)  =zbot
-      call update(nodes(jnode), x=coords(jnode)%array)
+      coords(1:2,jnode)=crackpoint2(:)
+      coords(3,  jnode)=zbot
+      call update(nodes(jnode), x=coords(:,jnode))
       
       jnode = NODES_ON_TOP_EDGES(3,jbe2)
-      coords(jnode)%array(1:2)=crackpoint2(:)
-      coords(jnode)%array(3)  =ztop
-      call update(nodes(jnode), x=coords(jnode)%array)
+      coords(1:2,jnode)=crackpoint2(:)
+      coords(3,  jnode)=ztop
+      call update(nodes(jnode), x=coords(:,jnode))
       
       jnode = NODES_ON_TOP_EDGES(4,jbe2)
-      coords(jnode)%array(1:2)=crackpoint2(:)
-      coords(jnode)%array(3)  =ztop
-      call update(nodes(jnode), x=coords(jnode)%array)
+      coords(1:2,jnode)=crackpoint2(:)
+      coords(3,  jnode)=ztop
+      call update(nodes(jnode), x=coords(:,jnode))
       
     end if
 
     !:::: update passed-in fl. nodes nstat (both surfs) ::::!
     
     ! update bot surf fl. nodes nstat
-    call update(nodes(NODES_ON_EDGES(3,jbe1)), nstat=COH_CRACK_EDGE)
-    call update(nodes(NODES_ON_EDGES(3,jbe2)), nstat=COH_CRACK_EDGE)
-    call update(nodes(NODES_ON_EDGES(4,jbe1)), nstat=COH_CRACK_EDGE)
-    call update(nodes(NODES_ON_EDGES(4,jbe2)), nstat=COH_CRACK_EDGE)
+    call update(nodes(NODES_ON_BOT_EDGES(3,jbe1)), nstat=COH_CRACK_EDGE)
+    call update(nodes(NODES_ON_BOT_EDGES(3,jbe2)), nstat=COH_CRACK_EDGE)
+    call update(nodes(NODES_ON_BOT_EDGES(4,jbe1)), nstat=COH_CRACK_EDGE)
+    call update(nodes(NODES_ON_BOT_EDGES(4,jbe2)), nstat=COH_CRACK_EDGE)
     ! update top surf fl. nodes nstat
-    call update(nodes(NODES_ON_EDGES(3,jbe1+NEDGE_SURF)), nstat=COH_CRACK_EDGE)
-    call update(nodes(NODES_ON_EDGES(3,jbe2+NEDGE_SURF)), nstat=COH_CRACK_EDGE)
-    call update(nodes(NODES_ON_EDGES(4,jbe1+NEDGE_SURF)), nstat=COH_CRACK_EDGE)
-    call update(nodes(NODES_ON_EDGES(4,jbe2+NEDGE_SURF)), nstat=COH_CRACK_EDGE)
+    call update(nodes(NODES_ON_TOP_EDGES(3,jbe1)), nstat=COH_CRACK_EDGE)
+    call update(nodes(NODES_ON_TOP_EDGES(3,jbe2)), nstat=COH_CRACK_EDGE)
+    call update(nodes(NODES_ON_TOP_EDGES(4,jbe1)), nstat=COH_CRACK_EDGE)
+    call update(nodes(NODES_ON_TOP_EDGES(4,jbe2)), nstat=COH_CRACK_EDGE)
 
     !:::: update elem partition ::::!
     ! only updates partition when changing from intact and trans elem
@@ -1675,13 +1675,6 @@ use global_toolkit_module,    only : assembleKF
     end do
 
   end subroutine tie_two_nodes
-
-
-  pure subroutine clean_up (Ki, Fi)
-    real(DP), allocatable, intent(inout) :: Ki(:,:), Fi(:)
-    if(allocated(Ki)) deallocate(Ki)
-    if(allocated(Fi)) deallocate(Fi)
-  end subroutine clean_up
 
 
   pure subroutine integrate_assemble_intact_elem (elem, nodes, ply_angle, lam_mat, &
