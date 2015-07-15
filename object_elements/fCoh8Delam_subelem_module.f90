@@ -47,7 +47,7 @@ module fCoh8Delam_subelem_module
 !
 
 ! load the modules and entities used for derived type declaration only
-use parameter_module,       only : NDIM, DP, ZERO, INT_ALLOC_ARRAY
+use parameter_module,       only : NDIM, DP, ZERO, INT_ALLOC_ARRAY, NST_COHESIVE, INTACT
 use abstDelam_elem_module,  only : abstDelam_elem
 
 implicit none
@@ -85,13 +85,11 @@ integer, parameter :: NODES_ON_BOT_EDGES(4,NEDGE_SURF) =    &
 type, public :: fCoh8Delam_subelem
   private
   ! list of components of this type:
-  ! node_connec         : nodes global connectivity
   ! top_edge_status     : edge status of top surf. edges
   ! edge_lambda         : = (distance btw the crack pnt (if present) on an edge
   !                       and the endnode 1 of the edge) / (length of the edge)
   ! subelems            : list of subelems of type baseCoh
   ! subelems_nodes      : indices of subelems' nodes
-  integer  :: node_connec(NNODE)            = 0
   integer  :: top_edge_status(NEDGE_SURF)   = 0
   real(DP) :: edge_lambda(NEDGE_SURF)       = ZERO
   type(abstDelam_elem),  allocatable :: subelems(:)
@@ -121,30 +119,59 @@ contains
 
 
 
-pure subroutine extract_fCoh8Delam_subelem (elem, subelems)
+pure subroutine extract_fCoh8Delam_subelem (elem, subelems_nodes, &
+& delam_tau, delam_delta, delam_dm)
 ! Purpose:
-! to extract components of this element, generally used in output
-! ** Note: **
-! to output this element, subelem array needs to be extracted first, then
-! extract the connec, fstat, dm, traction, separation, etc. from each sub elem
-use abstDelam_elem_module, only : abstDelam_elem
+! to output components of this element
+use abstDelam_elem_module,  only : extract
 
-  type(fCoh8Delam_subelem),                    intent(in)  :: elem
-  type(abstDelam_elem), allocatable, optional, intent(out) :: subelems(:)
+  type(fCoh8Delam_subelem),       intent(in)  :: elem
+  integer, allocatable, optional, intent(out) :: subelems_nodes(:,:)
+  real(DP),allocatable, optional, intent(out) :: delam_tau(:,:)
+  real(DP),allocatable, optional, intent(out) :: delam_delta(:,:)
+  real(DP),allocatable, optional, intent(out) :: delam_dm(:)
+  
+  integer :: nsub, i, nnd
 
-  if(present(subelems)) then
-    if(allocated(elem%subelems)) then
-      allocate(subelems(size(elem%subelems)))
-      subelems=elem%subelems
-    end if
+  if(present(subelems_nodes)) then
+    nsub = size(elem%subelems)
+    allocate(subelems_nodes(8,nsub))
+    subelems_nodes = 0
+    do i = 1, nsub
+      nnd = size(elem%subelems_nodes(i)%array)
+      subelems_nodes(1:nnd,i) = elem%subelems_nodes(i)%array(:)
+    end do
+  end if
+  
+  if(present(delam_tau)) then
+    nsub = size(elem%subelems)
+    allocate(delam_tau(NST_COHESIVE,nsub))
+    do i = 1, nsub
+      call extract(elem%subelems(i), traction=delam_tau(:,i))
+    end do
+  end if
+  
+  if(present(delam_delta)) then
+    nsub = size(elem%subelems)
+    allocate(delam_delta(NST_COHESIVE,nsub))
+    do i = 1, nsub
+      call extract(elem%subelems(i), separation=delam_delta(:,i))
+    end do
+  end if
+  
+  if(present(delam_dm)) then
+    nsub = size(elem%subelems)
+    allocate(delam_dm(nsub))
+    do i = 1, nsub
+      call extract(elem%subelems(i), dm=delam_dm(i))
+    end do
   end if
 
 end subroutine extract_fCoh8Delam_subelem
 
 
 
-pure subroutine set_fCoh8Delam_subelem (elem, node_connec, top_edge_status, &
-& istat, emsg)
+pure subroutine set_fCoh8Delam_subelem (elem, top_edge_status, istat, emsg)
 ! Purpose:
 ! to set the element ready for first use
 use parameter_module, only : MSGLENGTH, STAT_FAILURE, STAT_SUCCESS,&
@@ -153,7 +180,6 @@ use parameter_module, only : MSGLENGTH, STAT_FAILURE, STAT_SUCCESS,&
                       & COH_CRACK_EDGE, STRONG_CRACK_EDGE
 
   type(fCoh8Delam_subelem), intent(inout) :: elem
-  integer,                  intent(in)    :: node_connec(NNODE)
   integer,                  intent(in)    :: top_edge_status(NEDGE_SURF)
   integer,                  intent(out)   :: istat
   character(len=MSGLENGTH), intent(out)   :: emsg
@@ -169,13 +195,6 @@ use parameter_module, only : MSGLENGTH, STAT_FAILURE, STAT_SUCCESS,&
   
   ! check validity of inputs
   
-  ! check node connec
-  if ( any(node_connec < 1) ) then
-    istat = STAT_FAILURE
-    emsg  = 'node connec indices must be >=1,'//trim(msgloc)
-    return
-  end if
-  
   ! check edge status, see if there's any unexpected edge status value
   if ( any( .not. ( top_edge_status == INTACT          .or.         &
   &                 top_edge_status == TRANSITION_EDGE .or.         &
@@ -190,7 +209,7 @@ use parameter_module, only : MSGLENGTH, STAT_FAILURE, STAT_SUCCESS,&
   end if
   
   ! check the no. of broken edges; only accepts TWO cracked edges
-  n_crackedges = count (top_edge_status >= COH_CRACK_EDGE)
+  n_crackedges = count (top_edge_status > INTACT)
   if (n_crackedges /= 2) then
     istat = STAT_FAILURE
     emsg  = 'no. of cracked edges must be TWO,'//trim(msgloc)
@@ -198,7 +217,6 @@ use parameter_module, only : MSGLENGTH, STAT_FAILURE, STAT_SUCCESS,&
   end if
 
   ! update to elem
-  elem%node_connec     = node_connec
   elem%top_edge_status = top_edge_status
 
 end subroutine set_fCoh8Delam_subelem
@@ -293,9 +311,8 @@ pure subroutine partition_element (el, nodes, istat, emsg)
 !** NOTE: ONLY PARTITION WITH TWO CRACKED EDGES IS ALLOWED **
 use parameter_module, only : MSGLENGTH, STAT_SUCCESS, STAT_FAILURE, &
                       & INT_ALLOC_ARRAY, DP, ELTYPELENGTH, ZERO,    &
-                      & ONE, SMALLNUM, COH_CRACK_EDGE
+                      & ONE, SMALLNUM, TRANSITION_EDGE
 use fnode_module,          only : fnode, extract
-use abstDelam_elem_module, only : set
 use global_toolkit_module, only : distance, partition_quad_elem
 
   ! passed-in variables
@@ -333,7 +350,6 @@ use global_toolkit_module, only : distance, partition_quad_elem
   ! variables to define sub elems
   type(INT_ALLOC_ARRAY), allocatable :: subelems_nodes_top(:)
   type(INT_ALLOC_ARRAY), allocatable :: subelems_nodes_bot(:)
-  type(INT_ALLOC_ARRAY), allocatable :: subelems_glb_connec(:)
   integer                            :: nsub, subelems_nnode
   character(len=ELTYPELENGTH)        :: subelems_type
   ! counters
@@ -363,7 +379,7 @@ use global_toolkit_module, only : distance, partition_quad_elem
   ! find the no. of broken edges, and store their local indices in the array
   ! crack_edges
   do j = 1, NEDGE_SURF
-    if (el%top_edge_status(j) >= COH_CRACK_EDGE) then
+    if (el%top_edge_status(j) > INTACT) then
       n_crackedges = n_crackedges + 1
       crack_edges(n_crackedges) = j
     end if
@@ -398,8 +414,7 @@ use global_toolkit_module, only : distance, partition_quad_elem
     if (distn1n2 < SMALLNUM .or. distn1nc < SMALLNUM) then
       istat = STAT_FAILURE
       emsg = 'coords of edge end nodes or fl. nodes are incorrect'//trim(msgloc)
-      call clean_up (subelems_glb_connec, subelems_nodes_top, &
-      & subelems_nodes_bot, x1, x2, xc)
+      call clean_up (subelems_nodes_top, subelems_nodes_bot, x1, x2, xc)
       return
     end if
     ! calculate lambda
@@ -408,8 +423,7 @@ use global_toolkit_module, only : distance, partition_quad_elem
     if ( .not. (SMALLNUM < lambda .and. lambda < ONE-SMALLNUM) ) then
       istat = STAT_FAILURE
       emsg  = 'edge lambda is out of range'//trim(msgloc)
-      call clean_up (subelems_glb_connec, subelems_nodes_top, &
-      & subelems_nodes_bot, x1, x2, xc)
+      call clean_up (subelems_nodes_top, subelems_nodes_bot, x1, x2, xc)
       return
     end if
     ! update lambda to el components
@@ -426,9 +440,8 @@ use global_toolkit_module, only : distance, partition_quad_elem
   call partition_quad_elem (NODES_ON_TOP_EDGES, crack_edges, &
   & subelems_nodes_top, istat, emsg)
   if (istat == STAT_FAILURE) then
-    emsg = emsg//trim(msgloc)
-    call clean_up (subelems_glb_connec, subelems_nodes_top, &
-    & subelems_nodes_bot, x1, x2, xc)
+    emsg = trim(emsg)//trim(msgloc)
+    call clean_up (subelems_nodes_top, subelems_nodes_bot, x1, x2, xc)
     return
   end if
 
@@ -438,9 +451,8 @@ use global_toolkit_module, only : distance, partition_quad_elem
   call partition_quad_elem (NODES_ON_BOT_EDGES, crack_edges, &
   & subelems_nodes_bot, istat, emsg)
   if (istat == STAT_FAILURE) then
-    emsg = emsg//trim(msgloc)
-    call clean_up (subelems_glb_connec, subelems_nodes_top, &
-    & subelems_nodes_bot, x1, x2, xc)
+    emsg = trim(emsg)//trim(msgloc)
+    call clean_up (subelems_nodes_top, subelems_nodes_bot, x1, x2, xc)
     return
   end if
 
@@ -461,10 +473,8 @@ use global_toolkit_module, only : distance, partition_quad_elem
   ! subelems_glb_connec
   if(allocated(el%subelems))           deallocate(el%subelems)
   if(allocated(el%subelems_nodes))     deallocate(el%subelems_nodes)
-  if(allocated(subelems_glb_connec))   deallocate(subelems_glb_connec)
   allocate(el%subelems(nsub))
   allocate(el%subelems_nodes(nsub))
-  allocate(subelems_glb_connec(nsub))
 
   ! allocate & define these arrays
   do j = 1, nsub
@@ -472,27 +482,11 @@ use global_toolkit_module, only : distance, partition_quad_elem
     ! determine no. of nodes in sub elem j
     subelems_nnode = 2 * size(subelems_nodes_top(j)%array)
 
-    ! determine sub elem type based on subelems_nnode
-    select case (subelems_nnode)
-      case (6)
-        subelems_type = 'coh6Delam'
-      case (8)
-        subelems_type = 'coh8Delam'
-      case default
-        istat = STAT_FAILURE
-        emsg  = 'unexpected no. of nodes for sub elem in'//trim(msgloc)
-        call clean_up (subelems_glb_connec, subelems_nodes_top, &
-        & subelems_nodes_bot, x1, x2, xc)
-        return
-    end select
-
     ! allocate connec for sub elems
     allocate(el%subelems_nodes(j)%array(subelems_nnode))
-    allocate(subelems_glb_connec(j)%array(subelems_nnode))
 
     ! initialize these arrays
     el%subelems_nodes(j)%array   = 0
-    subelems_glb_connec(j)%array = 0
 
     ! populate lcl connec
     ! copy top surf. lcl connec
@@ -502,25 +496,11 @@ use global_toolkit_module, only : distance, partition_quad_elem
     el%subelems_nodes(j)%array(                    1 : subelems_nnode/2 ) = &
     &  subelems_nodes_bot(j)%array(:)
 
-    ! populate glb connec through el%node_connec
-    subelems_glb_connec(j)%array = el%node_connec(el%subelems_nodes(j)%array)
-
-    ! set this sub element
-    call set(el%subelems(j), eltype=subelems_type, &
-    & connec=subelems_glb_connec(j)%array, istat=istat, emsg=emsg)
-    if (istat == STAT_FAILURE) then
-      emsg = emsg//trim(msgloc)
-      call clean_up (subelems_glb_connec, subelems_nodes_top, &
-      & subelems_nodes_bot, x1, x2, xc)
-      return
-    end if
-
   end do
 
 
   ! deallocate local alloc arrays before successful return
-  call clean_up (subelems_glb_connec, subelems_nodes_top, &
-  & subelems_nodes_bot, x1, x2, xc)
+  call clean_up (subelems_nodes_top, subelems_nodes_bot, x1, x2, xc)
   return
 
 
@@ -528,19 +508,16 @@ use global_toolkit_module, only : distance, partition_quad_elem
   contains
 
 
-  pure subroutine clean_up (subelems_glb_connec, subelems_nodes_top, &
-  & subelems_nodes_bot, x1, x2, xc)
-  type(INT_ALLOC_ARRAY), allocatable, intent(inout) :: subelems_glb_connec(:)
-  type(INT_ALLOC_ARRAY), allocatable, intent(inout) :: subelems_nodes_top(:)
-  type(INT_ALLOC_ARRAY), allocatable, intent(inout) :: subelems_nodes_bot(:)
-  real(DP),              allocatable, intent(inout) :: x1(:), x2(:), xc(:)
+  pure subroutine clean_up (subelems_nodes_top, subelems_nodes_bot, x1, x2, xc)
+    type(INT_ALLOC_ARRAY), allocatable, intent(inout) :: subelems_nodes_top(:)
+    type(INT_ALLOC_ARRAY), allocatable, intent(inout) :: subelems_nodes_bot(:)
+    real(DP),              allocatable, intent(inout) :: x1(:), x2(:), xc(:)
 
-  if(allocated(subelems_glb_connec))  deallocate(subelems_glb_connec)
-  if(allocated(subelems_nodes_top))   deallocate(subelems_nodes_top)
-  if(allocated(subelems_nodes_bot))   deallocate(subelems_nodes_bot)
-  if(allocated(x1))                   deallocate(x1)
-  if(allocated(x2))                   deallocate(x2)
-  if(allocated(xc))                   deallocate(xc)
+    if(allocated(subelems_nodes_top))   deallocate(subelems_nodes_top)
+    if(allocated(subelems_nodes_bot))   deallocate(subelems_nodes_bot)
+    if(allocated(x1))                   deallocate(x1)
+    if(allocated(x2))                   deallocate(x2)
+    if(allocated(xc))                   deallocate(xc)
   end subroutine clean_up
 
 
@@ -551,7 +528,7 @@ end subroutine partition_element
 pure subroutine update_internal_nodes (el, nodes)
 ! Purpose:
 ! - update the components of the internal nodes of this element
-use parameter_module, only : ZERO, ONE, COH_CRACK_EDGE
+use parameter_module, only : ZERO, ONE, TRANSITION_EDGE
 use fnode_module,     only : fnode, operator(+), operator(*)
 
   type(fCoh8Delam_subelem), intent(in) :: el
@@ -572,7 +549,7 @@ use fnode_module,     only : fnode, operator(+), operator(*)
 
   do j = 1, NEDGE_SURF
     ! if this top edge is not cracked, cycle to the next
-    if (el%top_edge_status(j) < COH_CRACK_EDGE) cycle
+    if (el%top_edge_status(j) == INTACT) cycle
     ! extract the local index of the cracked top edge
     Icrackedge  = j
     ! find the internal node on the corresponding
@@ -668,6 +645,13 @@ use global_toolkit_module,    only : assembleKF
 
     ! allocate the condensed K mat and F vec
     n = size(Tmatrixfull(1,:))
+    ! debug
+    if (n /= 16*NDIM) then
+      istat = STAT_FAILURE
+      emsg = 'Tmatrix size incorrect'//trim(msgloc)
+      return
+    end if
+    ! end debug
     allocate( Kmat_r(n,n), Fvec_r(n) )
     Kmat_r = ZERO
     Fvec_r = ZERO
@@ -689,7 +673,7 @@ use global_toolkit_module,    only : assembleKF
 
   ! clean up if above loop exit upon error
   if (istat == STAT_FAILURE) then
-    emsg = emsg//trim(msgloc)
+    emsg = trim(emsg)//trim(msgloc)
     K_matrix = ZERO
     F_vector = ZERO
   end if
@@ -710,7 +694,7 @@ pure subroutine get_Tmatrix (el, Tmatrixfull)
 ! - calculate [Tmatrixfull], s.t. {U} = [Tmatrixfull] . {U_condensed}, where
 ! {U_condensed} is the nodal dof vector without the internal nodal dofs. The
 ! internal nodal dofs are interpolated from the other nodal dofs.
-use parameter_module, only : DP, ZERO, ONE, COH_CRACK_EDGE
+use parameter_module, only : DP, ZERO, ONE, TRANSITION_EDGE
 
   type(fCoh8Delam_subelem), intent(in)  :: el
   real(DP),    allocatable, intent(out) :: Tmatrixfull(:,:)
@@ -745,7 +729,7 @@ use parameter_module, only : DP, ZERO, ONE, COH_CRACK_EDGE
   ! condensation
   do j = 1, NEDGE_SURF
     ! if this top edge is not cracked, cycle to the next
-    if (el%top_edge_status(j) < COH_CRACK_EDGE) cycle
+    if (el%top_edge_status(j) == INTACT) cycle
     ! extract the local index of the cracked top edge
     Icrackedge  = j
     ! find the internal node on the corresponding

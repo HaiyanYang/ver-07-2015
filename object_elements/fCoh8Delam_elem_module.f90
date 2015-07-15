@@ -143,7 +143,6 @@ integer, parameter :: BOT_SUBELEM_NODES(20) = [8,7,6,5,4,3,2,1,  &
 type, public :: fCoh8Delam_elem
     private
 
-    integer :: node_connec(NNODE) = 0
     logical :: top_subelem_set    = .false.
     logical :: bot_subelem_set    = .false.
     type(coh8Delam_elem),     allocatable :: intact_elem
@@ -152,9 +151,11 @@ type, public :: fCoh8Delam_elem
 
 end type fCoh8Delam_elem
 
+
 interface set
     module procedure set_fCoh8Delam_elem
 end interface
+
 
 interface update
     module procedure update_fCoh8Delam_elem
@@ -177,54 +178,10 @@ contains
 
 
 
-pure subroutine set_fCoh8Delam_elem (elem, node_connec, istat, emsg)
-! Purpose:
-! to set the element ready for first use
-use parameter_module,       only : MSGLENGTH, STAT_FAILURE, STAT_SUCCESS
-use coh8Delam_elem_module,  only : set
-
+pure subroutine set_fCoh8Delam_elem (elem)
   type(fCoh8Delam_elem),    intent(inout) :: elem
-  integer,                  intent(in)    :: node_connec(nnode)
-  integer,                  intent(out)   :: istat
-  character(len=MSGLENGTH), intent(out)   :: emsg
-
-  ! global_connec of sub element
-  integer, allocatable  :: global_connec(:)
-  ! location for emsg
-  character(len=MSGLENGTH) :: msgloc
-
-  istat = STAT_SUCCESS
-  emsg  = ''
-  msgloc = ' set, fCoh8Delam_elem module'
-
-  ! check validity of inputs
-  if ( any(node_connec < 1) ) then
-    istat = STAT_FAILURE
-    emsg  = 'node connec indices must be >=1'//trim(msgloc)
-    return
-  end if
-
-  ! update to elem_lcl first
-  elem%node_connec = node_connec
-
-  ! allocate intact elem
+  
   allocate(elem%intact_elem)
-  allocate(global_connec(NNDRL))
-
-  ! populate the global connec of intact element
-  global_connec(:) = node_connec(INTACT_ELEM_NODES(:))
-
-  ! set the intact element
-  call set (elem%intact_elem, connec=global_connec, istat=istat, emsg=emsg)
-
-  ! if an error is encountered in set, clean up and exit program
-  if (istat == STAT_FAILURE) then
-    if (allocated(global_connec)) deallocate(global_connec)
-    emsg = emsg//trim(msgloc)
-    return
-  end if
-
-  if (allocated(global_connec)) deallocate(global_connec)
 
 end subroutine set_fCoh8Delam_elem
 
@@ -273,7 +230,7 @@ use fCoh8Delam_subelem_module, only : set
 
   ! check the no. of broken edges; only accepts TWO cracked edges, as this is
   ! the final partition from the ply element
-  n_crackedges = count (ply_edge_status >= COH_CRACK_EDGE)
+  n_crackedges = count (ply_edge_status > INTACT)
   if (n_crackedges /= 2) then
     istat = STAT_FAILURE
     emsg  = 'no. of cracked edges must be TWO,'//trim(msgloc)
@@ -295,10 +252,9 @@ use fCoh8Delam_subelem_module, only : set
 
         ! set top sub elem; note that the top sub elem's top edges are just
         ! this elem's top edges, without any change of order
-        call set (elem%top_subelem, node_connec=elem%node_connec(TOP_SUBELEM_NODES),&
-        & top_edge_status=ply_edge_status, istat=istat, emsg=emsg)
+        call set (elem%top_subelem, ply_edge_status, istat, emsg)
         if (istat == STAT_FAILURE) then
-          emsg = emsg//trim(msgloc)
+          emsg = trim(emsg)//trim(msgloc)
           return
         end if
 
@@ -317,11 +273,10 @@ use fCoh8Delam_subelem_module, only : set
         ! set top sub elem; note that the bot sub elem's top edges are
         ! this elem's bot edges but with permutated order (see illustration at top
         ! of this module, in comment)
-        call set (elem%bot_subelem, node_connec=elem%node_connec(BOT_SUBELEM_NODES),&
-        & top_edge_status=ply_edge_status([3, 2, 1, 4]), istat=istat, &
-        & emsg=emsg)
+        call set (elem%bot_subelem, top_edge_status=ply_edge_status([3, 2, 1, 4]), &
+        & istat=istat, emsg=emsg)
         if (istat == STAT_FAILURE) then
-          emsg = emsg//trim(msgloc)
+          emsg = trim(emsg)//trim(msgloc)
           return
         end if
 
@@ -339,40 +294,65 @@ end subroutine update_fCoh8Delam_elem
 
 
 
-pure subroutine extract_fCoh8Delam_elem(elem, top_subelem_set, bot_subelem_set,&
-& intact_elem, top_subelem, bot_subelem)
-use coh8Delam_elem_module,     only : coh8Delam_elem
-use fCoh8Delam_subelem_module, only : fCoh8Delam_subelem
+pure subroutine extract_fCoh8Delam_elem(elem, top_subelem_set, bot_subelem_set, &
+& subelems_nodes, delam_tau, delam_delta, delam_dm, delam_dm_avg)
+use parameter_module,          only: DP, ZERO, HALF
+use coh8Delam_elem_module,     only: extract
+use fCoh8Delam_subelem_module, only: extract
 
-  type(fCoh8Delam_elem),                           intent(in)  :: elem
-  logical,                               optional, intent(out) :: top_subelem_set
-  logical,                               optional, intent(out) :: bot_subelem_set
-  type(coh8Delam_elem),     allocatable, optional, intent(out) :: intact_elem
-  type(fCoh8Delam_subelem), allocatable, optional, intent(out) :: top_subelem
-  type(fCoh8Delam_subelem), allocatable, optional, intent(out) :: bot_subelem
-
+  type(fCoh8Delam_elem),           intent(in)  :: elem
+  logical,               optional, intent(out) :: top_subelem_set
+  logical,               optional, intent(out) :: bot_subelem_set
+  integer,  allocatable, optional, intent(out) :: subelems_nodes(:,:)
+  real(DP), allocatable, optional, intent(out) :: delam_tau(:,:)
+  real(DP), allocatable, optional, intent(out) :: delam_delta(:,:)
+  real(DP), allocatable, optional, intent(out) :: delam_dm(:)
+  real(DP),              optional, intent(out) :: delam_dm_avg
+  
+  real(DP), allocatable :: top_dm(:), bot_dm(:)
+  real(DP)              :: top_dm_avg, bot_dm_avg
+  
+  top_dm_avg = ZERO
+  bot_dm_avg = ZERO
+  
   if (present(top_subelem_set)) top_subelem_set = elem%top_subelem_set
   if (present(bot_subelem_set)) bot_subelem_set = elem%bot_subelem_set
-
-  if (present(intact_elem)) then
+  
+  ! for now, only output intact elem nodes for simplicity.
+  if (present(subelems_nodes)) then
+      allocate(subelems_nodes(8,1))
+      subelems_nodes(:,1) = INTACT_ELEM_NODES
+  end if
+  
+  
+  if (present(delam_dm_avg)) then
+    
+    delam_dm_avg = ZERO
+    
     if (allocated(elem%intact_elem)) then
-      allocate(intact_elem)
-      intact_elem = elem%intact_elem
-    end if
-  end if
 
-  if (present(top_subelem)) then
-    if (allocated(elem%top_subelem)) then
-      allocate(top_subelem)
-      top_subelem = elem%top_subelem
-    end if
-  end if
+      call extract(elem%intact_elem, dm=delam_dm_avg)
+    
+    else
 
-  if (present(bot_subelem)) then
-    if (allocated(elem%bot_subelem)) then
-      allocate(bot_subelem)
-      bot_subelem = elem%bot_subelem
+      if (elem%top_subelem_set) then
+         call extract(elem%top_subelem, delam_dm=top_dm)
+         top_dm_avg = sum(top_dm)/size(top_dm)
+         delam_dm_avg = delam_dm_avg + top_dm_avg
+      end if
+      
+      if (elem%bot_subelem_set) then
+         call extract(elem%bot_subelem, delam_dm=bot_dm)
+         bot_dm_avg = sum(bot_dm)/size(bot_dm)
+         delam_dm_avg = delam_dm_avg + bot_dm_avg
+      end if
+      
+      if (elem%top_subelem_set .and. elem%bot_subelem_set) then
+        delam_dm_avg = HALF * delam_dm_avg
+      end if
+      
     end if
+  
   end if
 
 end subroutine extract_fCoh8Delam_elem
@@ -432,7 +412,7 @@ use global_toolkit_module,     only : assembleKF
       & material=material, theta1=theta1, theta2=theta2,                     &
       & K_matrix=Ki, F_vector=Fi, istat=istat, emsg=emsg, nofailure=nofail)
       if (istat==STAT_FAILURE) then
-        emsg = emsg//trim(msgloc)
+        emsg = trim(emsg)//trim(msgloc)
         call clean_up(Ki, Fi)
         return
       end if
@@ -443,7 +423,7 @@ use global_toolkit_module,     only : assembleKF
       & istat, emsg)
       ! an error is encountered in assembly, zero K and F and exit
       if (istat==STAT_FAILURE) then
-        emsg = emsg//trim(msgloc)
+        emsg = trim(emsg)//trim(msgloc)
         K_matrix = ZERO
         F_vector = ZERO
         call clean_up(Ki, Fi)
@@ -452,7 +432,6 @@ use global_toolkit_module,     only : assembleKF
 
       ! clean up local alloc. array before successful return
       call clean_up(Ki, Fi)
-
       return
 
   end if
@@ -473,7 +452,7 @@ use global_toolkit_module,     only : assembleKF
       & theta1=theta1, theta2=theta2, K_matrix=Ki, F_vector=Fi,             &
       & istat=istat, emsg=emsg, nofailure=nofail)
       if (istat==STAT_FAILURE) then
-        emsg = emsg//trim(msgloc)
+        emsg = trim(emsg)//trim(msgloc)
         call clean_up(Ki, Fi)
         return
       end if
@@ -485,7 +464,7 @@ use global_toolkit_module,     only : assembleKF
       & istat, emsg)
       ! an error is encountered in assembly, zero K and F and exit
       if (istat==STAT_FAILURE) then
-        emsg = emsg//trim(msgloc)
+        emsg = trim(emsg)//trim(msgloc)
         K_matrix = ZERO
         F_vector = ZERO
         call clean_up(Ki, Fi)
@@ -505,7 +484,7 @@ use global_toolkit_module,     only : assembleKF
       & theta1=theta1, theta2=theta2, K_matrix=Ki, F_vector=Fi,             &
       & istat=istat, emsg=emsg, nofailure=nofail)
       if (istat==STAT_FAILURE) then
-        emsg = emsg//trim(msgloc)
+        emsg = trim(emsg)//trim(msgloc)
         call clean_up(Ki, Fi)
         return
       end if
@@ -517,7 +496,7 @@ use global_toolkit_module,     only : assembleKF
       & istat, emsg)
       ! an error is encountered in assembly, zero K and F and exit
       if (istat==STAT_FAILURE) then
-        emsg = emsg//trim(msgloc)
+        emsg = trim(emsg)//trim(msgloc)
         K_matrix = ZERO
         F_vector = ZERO
         call clean_up(Ki, Fi)
@@ -528,7 +507,7 @@ use global_toolkit_module,     only : assembleKF
 
 
   if (elem%top_subelem_set .and. elem%bot_subelem_set) then
-      ! half the elem's K and F
+      ! half the elem's K and F on real nodes
       K_matrix = HALF * K_matrix
       F_vector = HALF * F_vector
   end if

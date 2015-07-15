@@ -35,13 +35,17 @@ BOTTOM, 2, 2
 BOTTOM, 1, 1
 *Boundary
 BOTTOM, 3, 3
+*Boundary
+TOP, 1, 1
+*Boundary
+TOP, 3, 3
 ** ----------------------------------------------------------------
 ** 
 ** STEP: tension
 ** 
 *Step, name=tension, inc=1000
 *Static
-0.02, 0.1, 1e-07, 0.02
+0.0002, 0.1, 1e-07, 0.0002
 ** 
 ** BOUNDARY CONDITIONS
 ** 

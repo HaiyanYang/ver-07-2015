@@ -71,7 +71,6 @@ uel_elems = open(uelelemsfile,'w')
 #   Open Fortran modules to be written during pre-processing
 #***************************************************************
 fnm_nodes = open('fnm_nodes.f90','w')  # list of all nodes
-fnm_edges = open('fnm_edges.f90','w')  # list of all edges
 fnm_elems = open('fnm_elems.f90','w')  # list of all elems
 
 
@@ -262,8 +261,8 @@ for jp in jparts:
                     # append this edge no. in this elem 
                     parts[-1].elems[-1].edges.append(eg)
                     # find the two fl. nodes on this edge
-                    fn1 = parts[-1].edges[abs(eg)].nodes[2]
-                    fn2 = parts[-1].edges[abs(eg)].nodes[3]
+                    fn1 = parts[-1].edges[abs(eg)-1].nodes[2]
+                    fn2 = parts[-1].edges[abs(eg)-1].nodes[3]
                     # append the fl. nodes in this elem
                     # edge is in the same order as saved
                     if eg > 0:
@@ -272,9 +271,9 @@ for jp in jparts:
                     else:
                         parts[-1].elems[-1].nodes.extend([fn2,fn1])
     
-    #check elem correctness
-    for el in parts[-1].elems:
-        print(str(el.index)+','+str(el.nodes)+','+str(el.edges))
+    ##check elem correctness
+    #for el in parts[-1].elems:
+    #    print(str(el.index)+','+str(el.nodes)+','+str(el.edges))
     ##check NtN
     #print(str(parts[-1].NtN))
 
@@ -384,13 +383,13 @@ for ja in jassemblies:
     
     # read elsets in this assembly (NOT YET SUPPORTED)
 
-    # check assembly correctness
-    print(assemblies[-1].name)
-    print(assemblies[-1].instances[-1].name)
-    for m in assemblies[-1].nsets:
-        print(m.name)
-        print(str(m.rnodes))
-        print(str(m.edges))
+    ## check assembly correctness
+    #print(assemblies[-1].name)
+    #print(assemblies[-1].instances[-1].name)
+    #for m in assemblies[-1].nsets:
+    #    print(m.name)
+    #    print(str(m.rnodes))
+    #    print(str(m.edges))
 
 
 #==================================================
@@ -414,7 +413,7 @@ for jb in jbcds:
         bcds.append(bline)
         # find the nsets involved in this bline (future)
         # find the edges involved in this bline (future)
-print(bcds)
+#print(bcds)
 
 
 #==================================================
@@ -423,7 +422,7 @@ print(bcds)
 #==================================================
 step = []
 step.extend(All_lines[jdash:])
-print(step)
+#print(step)
 
 
 
@@ -502,22 +501,6 @@ if (nplyblk > 1):
 fnm_nodes.write('\n')
 fnm_nodes.write('end subroutine set_fnm_nodes\n')
 
-#***************************************************************
-#       write edges
-#***************************************************************
-# find the total no. of edges in this mesh
-nedgett = nplyblk * nedge_p
-# write fnm_edges.f90
-fnm_edges.write('subroutine set_fnm_edges()            \n')
-fnm_edges.write('use edge_list_module, only: edge_list \n')
-fnm_edges.write('                                  \n')
-fnm_edges.write('  integer :: nedge=0              \n')
-fnm_edges.write('                                  \n')
-fnm_edges.write('  nedge='+str(nedgett)+'          \n')
-fnm_edges.write('  allocate(edge_list(nedge))      \n')
-fnm_edges.write('  edge_list = 0                   \n')
-fnm_edges.write('                                  \n')
-fnm_edges.write('end subroutine set_fnm_edges      \n')
 
 #***************************************************************
 #       write elems
@@ -542,7 +525,7 @@ elnedge_l = elnedge_p * nplyblk
 
 fnm_elems.write('subroutine set_fnm_elems()                                 \n')
 fnm_elems.write('use parameter_module,      only: DP                        \n')
-fnm_elems.write('use elem_list_module,      only: elem_list,&               \n') 
+fnm_elems.write('use elem_list_module,      only: layup, elem_list,&        \n') 
 fnm_elems.write('                      & elem_node_connec, elem_edge_connec \n')
 fnm_elems.write('use fBrickLam_elem_module, only: plyblock_layup, set       \n') 
 fnm_elems.write('                                                           \n') 
@@ -551,7 +534,6 @@ fnm_elems.write('  integer :: elnnode = 0                                   \n')
 fnm_elems.write('  integer :: elnedge = 0                                   \n')  
 fnm_elems.write('  integer :: nplyblk = 0                                   \n')
 fnm_elems.write('  integer, allocatable :: nodecnc(:), edgecnc(:)           \n')
-fnm_elems.write('  type(plyblock_layup), allocatable :: layup(:)            \n')
 fnm_elems.write('                                                           \n')
 fnm_elems.write('  nelem   ='+str(nelemtt)+'                                \n')
 fnm_elems.write('  elnnode ='+str(elnndtt_l)+'                              \n')
@@ -597,7 +579,7 @@ for jel in range(nelemtt):
     # so the elem's edge connec is used for assignment of intern. nodes
     if nplyblk > 1:
         for jit in range(nplyblk-1):
-            elnds_l.extend( [ x + nnode_p * nplyblk + nedge_p * jit for x in elegs_p ] )
+            elnds_l.extend( [ abs(x) + nnode_p * nplyblk + nedge_p * jit for x in elegs_p ] )
             
     #**** write elem's nodal and edge connec to uel&fnm_elems ****
     
@@ -654,8 +636,7 @@ for jel in range(nelemtt):
     for l in gline:
         fnm_elems.write('& '+l+' &\n')
     fnm_elems.write('& ]\n')
-    fnm_elems.write('  call set(elem_list('+str(jel+1)+'), NPLYBLKS='+str(nplyblk)+',& \n')
-    fnm_elems.write('& node_connec=nodecnc, layup=layup)\n')
+    fnm_elems.write('  call set(elem_list('+str(jel+1)+'), NPLYBLKS='+str(nplyblk)+')\n')
     # write elem_node_connec array
     fnm_elems.write('  elem_node_connec(:,'+str(jel+1)+')=nodecnc(:)\n')
     # write elem_edge_connec array
@@ -775,8 +756,6 @@ uel_input.close()
 #   close nodes files
 fnm_nodes.close()
 uel_nodes.close()
-#   close edges file
-fnm_edges.close()
 #   close elems files
 fnm_elems.close()
 uel_elems.close()
