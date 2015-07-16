@@ -30,6 +30,17 @@ import os, sys
 # shutil module has functions for different kinds of copying
 import shutil
 
+# define get integer
+def GetInteger2():
+    nnn = None
+    while nnn != 1 and nnn !=2:
+        try:
+            s=sys.stdin.readline()
+            nnn = int(s)
+        except ValueError:
+            print ('Invalid Number. Enter integer. ')
+    return nnn
+
 
 #***************************************************************
 #   define parameters
@@ -77,21 +88,28 @@ fnm_elems = open('fnm_elems.f90','w')  # list of all elems
 #***************************************************************
 #       ask for layup from user
 #***************************************************************
+# isSymLam: yes if the laminate layup is symmetric 
 # rawlayup: layup of the laminate in a list of all plies
 # blklayup: layup of the laminate in a list of plyblocks
 rawlayup = []
 blklayup = []
 
+# ask if the lamiante layup is symmetric
+print (" Is the model a half-laminate with symmetric mid-plane:  1=yes  2=no ")
+isSymLam = GetInteger2()
+
 # ask for a list of ply angles
 rawlayup = \
-input('Enter fibre angles (int/float) of all plies, \
-separated by comma, end with comma:')
+input('Enter fibre angles (int/float) of all plies in the model, \
+from bottom ply to top or mid ply (if the model is half-laminate); \
+separate each ply by a comma; in case of a single ply, end with a comma:')
 # check if it is a list and if all elements in the list are numbers
 while ( (not isinstance(rawlayup, (list,tuple))) or \
  (not all(isinstance(item, (int,float)) for item in rawlayup)) ):
     rawlayup = \
-    input('Enter fibre angles (int/float) of all plies, \
-    separated by comma, end with comma::')      
+    input('Enter fibre angles (int/float) of all plies in the model, \
+    from bottom ply to top or mid ply (if the model is half-laminate); \
+    separate each ply by a comma; in case of a single ply, end with a comma:')  
 
 # ask for the thickness of a single ply
 plythick = \
@@ -110,8 +128,9 @@ for plyangle in rawlayup:
     else:
         blklayup.append( plyblk(angle=plyangle, nplies=1, thickness=plythick) )
 
-
-
+# if the laminate is symmetric, change the nplies for the last plyblk
+if (isSymLam == 1):
+    blklayup[-1].nplies = 2 * blklayup[-1].nplies
 #***************************************************************
 #       Read Abaqus input file
 #***************************************************************
