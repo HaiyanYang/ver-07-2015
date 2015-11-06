@@ -10,6 +10,65 @@ import math
 # update material definitions below for the current analysis
 # -----------------------------------------------------------
 
+## Nettles OHT UD carbon epoxy lamina material properties
+#UDSinglePly = lamina( lamina_modulus(\
+#                                        E1=175000., 
+#                                        E2=8200., 
+#                                        G12=5500., 
+#                                        G23=3980., 
+#                                        nu12=0.33, 
+#                                        nu23=0.43   
+#                                    ),
+#                      lamina_strength(\
+#                                        Xt=2500., 
+#                                        Xc=1700., 
+#                                        Yt=69., 
+#                                        Yc=169., 
+#                                        Sl=43., 
+#                                        St=63.7     
+#                                     ),
+#                      lamina_fibreToughness(\
+#                                        GfcT=147.2, 
+#                                        GfcC=147.2   
+#                                           )  )
+#
+## Nettles OHT matrix crack cohesive material properties
+#matrixCrack = cohesive(   cohesive_modulus(\
+#                                        Dnn=1000000., 
+#                                        Dtt=1000000., 
+#                                        Dll=1000000.
+#                                          ),
+#                          cohesive_strength(\
+#                                        tau_nc=69., 
+#                                        tau_tc=43., 
+#                                        tau_lc=43.
+#                                           ),
+#                          cohesive_toughness(\
+#                                        Gnc=0.372, 
+#                                        Gtc=1.192, 
+#                                        Glc=1.192, 
+#                                        alpha=1.
+#                                            )    )
+#
+#
+## Nettles OHT delamination cohesive material properties
+#interface = cohesive(   cohesive_modulus(\
+#                                        Dnn=1000000., 
+#                                        Dtt=1000000., 
+#                                        Dll=1000000.
+#                                          ),
+#                          cohesive_strength(\
+#                                        tau_nc=69., 
+#                                        tau_tc=43., 
+#                                        tau_lc=43.
+#                                           ),
+#                          cohesive_toughness(\
+#                                        Gnc=0.372, 
+#                                        Gtc=1.192, 
+#                                        Glc=1.192, 
+#                                        alpha=1.
+#                                            )    )
+
 # IM7/8552 UD carbon epoxy lamina material properties
 UDSinglePly = lamina( lamina_modulus(\
                                         E1=161000., 
@@ -28,8 +87,8 @@ UDSinglePly = lamina( lamina_modulus(\
                                         St=90.     
                                      ),
                       lamina_fibreToughness(\
-                                        GfcT=100., 
-                                        GfcC=100.   
+                                        GfcT=112.7, 
+                                        GfcC=112.7   
                                            )  )
 
 # IM7/8552 matrix crack cohesive material properties
@@ -58,9 +117,9 @@ interface = cohesive(   cohesive_modulus(\
                                         Dll=1000000.
                                      ),
                     cohesive_strength(\
-                                        tau_nc=60., 
-                                        tau_tc=90., 
-                                        tau_lc=90.
+                                        tau_nc=40., 
+                                        tau_tc=50., 
+                                        tau_lc=50.
                                       ),
                     cohesive_toughness(\
                                         Gnc=0.293, 

@@ -18,8 +18,8 @@ use cohesive_material_module, only: set, cohesive_modulus, &
   & E2   =11400.0_dp,& 
   & G12  =5170.0_dp,& 
   & G23  =3980.0_dp,& 
-  & nu12 =0.0_dp,& 
-  & nu23 =0.0_dp),& 
+  & nu12 =0.34_dp,& 
+  & nu23 =0.43_dp),& 
   & lamina_strength(& 
   & Xt   =2806.0_dp,& 
   & Xc   =1400.0_dp,& 
@@ -28,8 +28,8 @@ use cohesive_material_module, only: set, cohesive_modulus, &
   & Sl   =90.0_dp,& 
   & St   =90.0_dp),& 
   & lamina_fibreToughness(& 
-  & GfcT =100.0_dp,& 
-  & GfcC =100.0_dp)) 
+  & GfcT =112.7_dp,& 
+  & GfcC =112.7_dp)) 
 
   call set(matrixCrack_material, & 
   & cohesive_modulus(& 
@@ -52,9 +52,9 @@ use cohesive_material_module, only: set, cohesive_modulus, &
   & Dtt    =1000000.0_dp,& 
   & Dll    =1000000.0_dp),& 
   & cohesive_strength(& 
-  & tau_nc =60.0_dp,& 
-  & tau_tc =90.0_dp,& 
-  & tau_lc =90.0_dp),& 
+  & tau_nc =40.0_dp,& 
+  & tau_tc =50.0_dp,& 
+  & tau_lc =50.0_dp),& 
   & cohesive_toughness(& 
   & Gnc    =0.293_dp,& 
   & Gtc    =0.631_dp,& 
