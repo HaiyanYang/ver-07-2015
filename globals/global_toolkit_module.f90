@@ -896,7 +896,8 @@ contains
 
   use parameter_module, only : DP, MSGLENGTH, STAT_SUCCESS, STAT_FAILURE, &
                         & ZERO, HALF, HALFCIRC, PI, SMALLNUM,             &
-                        & CROSS_ON_EDGE_ON_CRACK,  CROSS_ON_EDGE_OFF_CRACK
+                        & CROSS_ON_EDGE_ON_CRACK,  CROSS_ON_EDGE_OFF_CRACK, &
+                        & NTESTCRACKPOINT
 
     ! list of dummy args:
     ! - cracktip_point     : coords of the crack tip
@@ -1043,20 +1044,24 @@ contains
         ! the two end nodes' coords of edge i
         coords_edge(:, 1) = coords(:, nodes_on_edges(1,i))
         coords_edge(:, 2) = coords(:, nodes_on_edges(2,i))
-        ! set the temp. 2nd crack point to be the midpoint of this edge
-        coords_crack(:,2) = HALF * ( coords_edge(:, 1) + coords_edge(:, 2) )
-        test_line(:)      = coords_crack(:,2) - coords_crack(:,1)
-        ! normalize the test_line vector
-        call normalize_vect (test_line, is_zero_vect)
-        ! if it is too short, then go to the next edge
-        if (is_zero_vect) cycle
-        ! update projection and 2nd crack_edge_ID & edge crack point
-        if (abs(dot_product(test_line,crack_unit_vect)) > projection) then
-          projection          = abs(dot_product(test_line,crack_unit_vect))
-          crack_edge_ID       = i
-          edge_crack_point(:) = coords_crack(:,2)
-          n_crack_edge        = 1
-        end if
+        ! loop over all test crack points on this edge
+        do j = 1, NTESTCRACKPOINT-1
+          ! set the temp. 2nd crack point to be the jth test crack point of this edge
+          coords_crack(:,2) = (ONE-j*ONE/NTESTCRACKPOINT) * coords_edge(:, 1) + &
+          & j * ONE/NTESTCRACKPOINT * coords_edge(:, 2)
+          test_line(:)      = coords_crack(:,2) - coords_crack(:,1)
+          ! normalize the test_line vector
+          call normalize_vect (test_line, is_zero_vect)
+          ! if it is too short, then go to the next edge
+          if (is_zero_vect) cycle
+          ! update projection and 2nd crack_edge_ID & edge crack point
+          if (abs(dot_product(test_line,crack_unit_vect)) > projection) then
+            projection          = abs(dot_product(test_line,crack_unit_vect))
+            crack_edge_ID       = i
+            edge_crack_point(:) = coords_crack(:,2)
+            n_crack_edge        = 1
+          end if
+        end do
       end do
       ! if still cannot find the second crack edge, then this elem is wrongly shaped
       if (n_crack_edge == 0) then
