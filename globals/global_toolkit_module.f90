@@ -895,7 +895,7 @@ contains
   ! crack tip) and another edge of an element, and the index of the edge crossed
 
   use parameter_module, only : DP, MSGLENGTH, STAT_SUCCESS, STAT_FAILURE, &
-                        & ZERO, HALF, HALFCIRC, PI, SMALLNUM,             &
+                        & ZERO, ONE, HALF, HALFCIRC, PI, SMALLNUM,          &
                         & CROSS_ON_EDGE_ON_CRACK,  CROSS_ON_EDGE_OFF_CRACK, &
                         & NTESTCRACKPOINT
 
