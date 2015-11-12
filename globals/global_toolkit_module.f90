@@ -663,7 +663,8 @@ contains
 
   use parameter_module, only : DP, MSGLENGTH, STAT_SUCCESS, STAT_FAILURE,  &
                         & ZERO, HALF, HALFCIRC, PI, SMALLNUM, ONE, QUARTER,&
-                        & CROSS_ON_EDGE_ON_CRACK,  CROSS_ON_EDGE_OFF_CRACK
+                        & CROSS_ON_EDGE_ON_CRACK,  CROSS_ON_EDGE_OFF_CRACK, &
+                        & NTESTCRACKPOINT
 
     ! list of dummy args:
     ! - nedge              : no. of edges in this element; = no. of nodes
@@ -807,25 +808,28 @@ contains
         ! the two end nodes' coords of edge i
         coords_edge(:, 1) = coords(:, nodes_on_edges(1,i))
         coords_edge(:, 2) = coords(:, nodes_on_edges(2,i))
-        ! set the temp. 2nd crack point to be the midpoint of this edge
-        coords_crack(:,2) = HALF * ( coords_edge(:, 1) + coords_edge(:, 2) )
-        test_line(:)      = coords_crack(:,2) - coords_crack(:,1)
-        ! normalize the test_line vector
-        call normalize_vect (test_line, is_zero_vect)
-        ! if it is too short, then go to the next edge
-        if (is_zero_vect) cycle
-        ! update projection and 2nd crack_edge_ID & edge crack point
-        if (abs(dot_product(test_line,crack_unit_vect)) > projection) then
-          projection             = abs(dot_product(test_line,crack_unit_vect))
-          crack_edge_IDs(2)      = i
-          edge_crack_points(:,2) = coords_crack(:,2)
-          n_crack_edge           = 2
-        end if
+        do j = 1, NTESTCRACKPOINT-1
+          ! set the temp. 2nd crack point to be the jth test crack point of this edge
+          coords_crack(:,2) = (ONE-j*ONE/NTESTCRACKPOINT) * coords_edge(:, 1) + &
+          & j * ONE/NTESTCRACKPOINT * coords_edge(:, 2)
+          test_line(:)      = coords_crack(:,2) - coords_crack(:,1)
+          ! normalize the test_line vector
+          call normalize_vect (test_line, is_zero_vect)
+          ! if it is too short, then go to the next edge
+          if (is_zero_vect) cycle
+          ! update projection and 2nd crack_edge_ID & edge crack point
+          if (abs(dot_product(test_line,crack_unit_vect)) > projection) then
+            projection             = abs(dot_product(test_line,crack_unit_vect))
+            crack_edge_IDs(2)      = i
+            edge_crack_points(:,2) = coords_crack(:,2)
+            n_crack_edge           = 2
+          end if
+        end do
       end do
       ! if still cannot find the second crack edge, then this elem is wrongly shaped
       if (n_crack_edge == 1) then
         istat = STAT_FAILURE
-        emsg  = 'midpoint of 2nd cracked edge cannot be found, element is likely to be &
+        emsg  = '2nd crack point cannot be found, element is likely to be &
         & very poorly shaped, crack_elem_centroid2d, global_toolkit_module'
         return
       end if
@@ -840,9 +844,10 @@ contains
         ! the two end nodes' coords of edge i
         coords_edge(:, 1) = coords(:, nodes_on_edges(1,i))
         coords_edge(:, 2) = coords(:, nodes_on_edges(2,i))
-        do j = 1, 3
-          ! set the temp. 2nd crack point to be the jth quarter point of this edge
-          coords_crack(:,2) = (ONE-j*QUARTER)*coords_edge(:, 1) + j*QUARTER*coords_edge(:, 2)
+        do j = 1, NTESTCRACKPOINT-1
+          ! set the temp. 2nd crack point to be the jth test crack point of this edge
+          coords_crack(:,2) = (ONE-j*ONE/NTESTCRACKPOINT) * coords_edge(:, 1) + &
+          & j * ONE/NTESTCRACKPOINT * coords_edge(:, 2)
           test_line(:)      = coords_crack(:,2) - coords_crack(:,1)
           ! normalize the test_line vector
           call normalize_vect (test_line, is_zero_vect)
@@ -863,7 +868,7 @@ contains
       ! if still cannot find the second crack edge, then this elem is wrongly shaped
       if (count(crack_edge_IDs>0) /= 2) then
         istat = STAT_FAILURE
-        emsg  = '2 midpoints of cracked edge cannot be found, element is likely to be &
+        emsg  = '2 crack points cannot be found, element is likely to be &
         & very poorly shaped, crack_elem_centroid2d, global_toolkit_module'
         return
       end if
