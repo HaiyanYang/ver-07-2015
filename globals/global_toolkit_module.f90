@@ -565,9 +565,9 @@ contains
       yN1L = line_seg(2,1)
       xN2L = line_seg(1,2)
       yN2L = line_seg(2,2)
-      a   = yN2L - yN1L
-      b   = xN1L - xN2L
-      c   = a * xN1L + b * yN1L
+      a   = yN1L - yN2L
+      b   = xN2L - xN1L
+      c   = yN1L * xN2L - xN1L * yN2L
 
     end subroutine line_equation
 
