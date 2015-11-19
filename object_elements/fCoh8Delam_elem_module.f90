@@ -198,7 +198,9 @@ pure subroutine update_fCoh8Delam_elem (elem, ply_edge_status, top_or_bottom, &
 use parameter_module, only : MSGLENGTH, STAT_FAILURE, STAT_SUCCESS,&
                       & INTACT, TRANSITION_EDGE, REFINEMENT_EDGE,  &
                       & CRACK_TIP_EDGE, WEAK_CRACK_EDGE,           &
-                      & COH_CRACK_EDGE, STRONG_CRACK_EDGE
+                      & COH_CRACK_EDGE, STRONG_CRACK_EDGE, ZERO,   &
+                      & ONE, SMALLNUM
+use coh8Delam_elem_module,     only : extract
 use fCoh8Delam_subelem_module, only : set
 
   type(fCoh8Delam_elem),    intent(inout) :: elem
@@ -209,9 +211,18 @@ use fCoh8Delam_subelem_module, only : set
 
   character(len=MSGLENGTH) :: msgloc
   integer                  :: n_crackedges
+  real(DP)                 :: dm_intact
+  
+  dm_intact = ZERO
 
   ! if both top and bot sub elems have already been set, return directly
   if (elem%top_subelem_set .and. elem%bot_subelem_set) return
+  
+  ! if the intact sub elem has already failed, return directly
+  if (allocated(elem%intact_elem)) then
+    call extract(elem%intact_elem, dm=dm_intact)
+    if (dm_intact >= ONE-SMALLNUM) return
+  end if
 
   istat  = STAT_SUCCESS
   emsg   = ''
@@ -341,18 +352,21 @@ use fCoh8Delam_subelem_module, only: extract
       if (elem%top_subelem_set) then
          call extract(elem%top_subelem, delam_dm=top_dm)
          top_dm_avg = sum(top_dm)/size(top_dm)
-         delam_dm_avg = delam_dm_avg + top_dm_avg
+         !delam_dm_avg = delam_dm_avg + top_dm_avg
+         ! The max value is the TRUE value of damage, not the average
+         delam_dm_avg = max(delam_dm_avg,top_dm_avg)
       end if
       
       if (elem%bot_subelem_set) then
          call extract(elem%bot_subelem, delam_dm=bot_dm)
          bot_dm_avg = sum(bot_dm)/size(bot_dm)
-         delam_dm_avg = delam_dm_avg + bot_dm_avg
+         !delam_dm_avg = delam_dm_avg + bot_dm_avg
+         delam_dm_avg = max(delam_dm_avg,bot_dm_avg)
       end if
       
-      if (elem%top_subelem_set .and. elem%bot_subelem_set) then
-        delam_dm_avg = HALF * delam_dm_avg
-      end if
+!      if (elem%top_subelem_set .and. elem%bot_subelem_set) then
+!        delam_dm_avg = HALF * delam_dm_avg
+!      end if
       
     end if
   
