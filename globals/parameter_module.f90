@@ -110,6 +110,7 @@ INTEGER, PARAMETER :: COH_MAT_ONSET = 5,  COH_MAT_FAILED = 10
 INTEGER, PARAMETER :: TRANSITION_EDGE = 1, REFINEMENT_EDGE   = 2,             &
                     & CRACK_TIP_EDGE  = 3, WEAK_CRACK_EDGE   = 3,             &
                     & COH_CRACK_EDGE  = 4, STRONG_CRACK_EDGE = 5
+INTEGER, PARAMETER :: UNBREAKABLE_EDGE = -1
 !-------------------------------------------------------------------------------
 
 
