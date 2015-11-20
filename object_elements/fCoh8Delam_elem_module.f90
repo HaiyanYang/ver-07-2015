@@ -199,7 +199,7 @@ use parameter_module, only : MSGLENGTH, STAT_FAILURE, STAT_SUCCESS,&
                       & INTACT, TRANSITION_EDGE, REFINEMENT_EDGE,  &
                       & CRACK_TIP_EDGE, WEAK_CRACK_EDGE,           &
                       & COH_CRACK_EDGE, STRONG_CRACK_EDGE, ZERO,   &
-                      & ONE, SMALLNUM
+                      & ONE, SMALLNUM, DP
 use coh8Delam_elem_module,     only : extract
 use fCoh8Delam_subelem_module, only : set
 
